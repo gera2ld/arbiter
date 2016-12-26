@@ -120,7 +120,7 @@ SOCIAL_AUTH_GITHUB_SECRET = environ.get('SOCIAL_AUTH_GITHUB_SECRET', '')
 SOCIAL_AUTH_GITHUB_EXTRA_DATA = [
     ('avatar_url', 'avatar'),
 ]
-SOCIAL_AUTH_LOGIN_REDIRECT_URL = '/'
+SOCIAL_AUTH_LOGIN_REDIRECT_URL = '/logged-in'
 SOCIAL_AUTH_PIPELINE = (
     'social.pipeline.social_auth.social_details',
     'social.pipeline.social_auth.social_uid',
@@ -134,7 +134,7 @@ SOCIAL_AUTH_PIPELINE = (
     'social.pipeline.social_auth.load_extra_data',
     'social.pipeline.user.user_details',
 )
-
+ALLOWED_REDIRECT_HOSTS = []
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.10/topics/i18n/

@@ -1,8 +1,8 @@
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.contrib.auth.models import User
-from django.core.cache import cache
 from django.views.decorators.http import require_GET, require_POST
+from arbiter.utils import pop_code
 from .utils import require_token, create_token, load_user, build_user
 
 @require_GET
@@ -21,14 +21,10 @@ def build_user_token(user):
 @require_POST
 def token_view(request):
     code = request.POST.get('code')
-    payload = None
+    payload = pop_code(code)
     user = None
-    if code:
-        cache_key = 'code:' + code
-        payload = cache.get(cache_key)
-        if payload is not None:
-            user = load_user(payload.get('uid'))
-            cache.delete(cache_key)
+    if payload is not None:
+        user = load_user(payload.get('uid'))
     if user is None:
         return JsonResponse({
             'error': 'Bad code',

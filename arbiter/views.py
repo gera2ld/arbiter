@@ -2,7 +2,6 @@ from urllib import parse
 from django.shortcuts import redirect, render
 from django.conf import settings
 from social.apps.django_app import views
-from social.utils import sanitize_redirect
 from .utils import create_code
 
 allowed_hosts = getattr(settings, 'ALLOWED_REDIRECT_HOSTS', [])
@@ -28,7 +27,13 @@ def logged_in(request):
         })
         qs.append(('code', code))
         url_parts.query = parse.urlencode(qs)
-        next_uri = sanitize_redirect(allowed_hosts, url_parts.geturl())
+        netloc = url_parts.netloc
+        for allowed_host in allowed_hosts:
+            allowed = netloc.endswith(allowed_host) if allowed_host.startswith('.') else allowed_host == netloc
+            if allowed:
+                next_uri = url_parts.geturl()
+        else:
+            next_uri = None
     return redirect(next_uri or '/')
 
 def home(request):

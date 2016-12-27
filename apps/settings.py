@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'social.apps.django_app.default',
     'api.apps.ApiConfig',
+    'arbiter.apps.ArbiterConfig',
 ]
 
 MIDDLEWARE = [
@@ -60,7 +61,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'arbiter.urls'
+ROOT_URLCONF = 'apps.urls'
 
 TEMPLATES = [
     {
@@ -80,7 +81,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'arbiter.wsgi.application'
+WSGI_APPLICATION = 'apps.wsgi.application'
 
 
 # Database

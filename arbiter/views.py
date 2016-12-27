@@ -1,5 +1,5 @@
 from urllib import parse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.conf import settings
 from social.apps.django_app import views
 from social.utils import sanitize_redirect
@@ -30,3 +30,8 @@ def logged_in(request):
         url_parts.query = parse.urlencode(qs)
         next_uri = sanitize_redirect(allowed_hosts, url_parts.geturl())
     return redirect(next_uri or '/')
+
+def home(request):
+    return render(request, 'arbiter/home.html', {
+        'user': request.user,
+    })

@@ -1,4 +1,4 @@
-import hashlib, pickle
+import hashlib, pickle, time
 from django.core.cache import cache
 
 def create_code(data):

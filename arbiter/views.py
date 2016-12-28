@@ -37,6 +37,12 @@ def logged_in(request):
     return redirect(next_uri or '/')
 
 def home(request):
+    next_uri = request.GET.get('next')
+    if next_uri:
+        querystring = '?' + parse.urlencode([('next', next_uri)])
+    else:
+        querystring = ''
     return render(request, 'arbiter/home.html', {
         'user': request.user,
+        'querystring': querystring,
     })

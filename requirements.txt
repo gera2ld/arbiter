@@ -1,2 +1,3 @@
 django
-python-social-auth
+social-auth-core
+social-auth-app-django

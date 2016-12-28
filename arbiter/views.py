@@ -1,7 +1,7 @@
 from urllib import parse
 from django.shortcuts import redirect, render
 from django.conf import settings
-from social.apps.django_app import views
+from social_django import views
 from .utils import create_code
 
 allowed_hosts = getattr(settings, 'ALLOWED_REDIRECT_HOSTS', [])

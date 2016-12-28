@@ -32,7 +32,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = environ['SECRET_KEY']
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = environ.get('PYTHON_ENV') != 'production'
 
 ALLOWED_HOSTS = []
 
@@ -135,7 +135,7 @@ SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.load_extra_data',
     'social_core.pipeline.user.user_details',
 )
-ALLOWED_REDIRECT_HOSTS = []
+ALLOWED_REDIRECT_HOSTS = environ.get('ALLOWED_REDIRECT_HOSTS', [])
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.10/topics/i18n/

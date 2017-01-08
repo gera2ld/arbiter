@@ -2,7 +2,7 @@ from urllib import parse
 from django.shortcuts import redirect, render
 from django.conf import settings
 from social_django import views
-from .utils import create_code
+from .utils import create_ticket
 
 allowed_hosts = getattr(settings, 'ALLOWED_REDIRECT_HOSTS', [])
 
@@ -22,7 +22,7 @@ def logged_in(request):
     if next_uri:
         url_parts = parse.urlparse(next_uri)
         qs = parse.parse_qsl(url_parts.query)
-        code = create_code({
+        code = create_ticket({
             'uid': request.user.id,
         })
         qs.append(('code', code))

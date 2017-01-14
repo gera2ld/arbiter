@@ -1,4 +1,4 @@
-import datetime, json
+import datetime
 from functools import wraps
 import jwt
 from django.conf import settings
@@ -22,16 +22,16 @@ def cache_result(get_cache_key, timeout=30):
 
 def create_token(payload, lifetime=datetime.timedelta(hours=24)):
     payload['exp'] = datetime.datetime.utcnow() + lifetime
-    return jwt.encode(payload, settings.SECRET_KEY)
+    return jwt.encode(payload, settings.SECRET_KEY).decode()
 
-@cache_result(lambda uid: 'uid:' + uid)
+@cache_result(lambda uid: 'uid:%s' % uid)
 def load_user(uid):
     try:
-        return User.objects.select_related('social_auth__extra_data').get(id=uid)
-    except:
+        return User.objects.get(id=uid)
+    except User.DoesNotExist:
         pass
 
-@cache_result(lambda token: 'token:' + token)
+@cache_result(lambda token: 'token:%s' % token)
 def load_user_from_token(token):
     try:
         jwt_payload = jwt.decode(token, settings.SECRET_KEY)
@@ -42,10 +42,11 @@ def load_user_from_token(token):
         return load_user(uid)
 
 def build_user(user, add_token=False):
+    extra = user.social_auth.first().extra_data
     data = {
         'uid': user.id,
-        'nickname': user.firstname,
-        'extra': json.loads(user.social_auth.first().extra_data),
+        'nickname': user.first_name,
+        'avatar': extra.get('avatar'),
     }
     if add_token:
         data['token'] = create_token({

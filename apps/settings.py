@@ -136,6 +136,8 @@ SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.user.user_details',
 )
 ALLOWED_REDIRECT_HOSTS = environ.get('ALLOWED_REDIRECT_HOSTS', [])
+# Disable social_auth sanitizer to use a custom one
+SOCIAL_AUTH_SANITIZE_REDIRECTS = False
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.10/topics/i18n/

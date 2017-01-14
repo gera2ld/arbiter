@@ -2,7 +2,7 @@ from urllib import parse
 from django.shortcuts import redirect, render
 from django.conf import settings
 from social_django import views
-from .utils import create_ticket
+from .utils import create_ticket, sanitize_url
 
 allowed_hosts = getattr(settings, 'ALLOWED_REDIRECT_HOSTS', [])
 
@@ -20,22 +20,12 @@ def logged_in(request):
         return redirect('home')
     next_uri = request.session.pop('next_uri', None)
     if next_uri:
-        url_parts = parse.urlparse(next_uri)
-        qs = parse.parse_qsl(url_parts.query)
-        code = create_ticket({
-            'uid': request.user.id,
-        })
-        qs.append(('code', code))
-        new_url_parts = list(url_parts)
-        new_url_parts[4] = parse.urlencode(qs)
-        hostname = url_parts.hostname
-        for allowed_host in allowed_hosts:
-            allowed = hostname.endswith(allowed_host) if allowed_host.startswith('.') else allowed_host == hostname
-            if allowed:
-                next_uri = parse.urlunparse(new_url_parts)
-                break
-        else:
-            next_uri = None
+        def get_extra():
+            ticket = create_ticket({
+                'uid': request.user.id,
+            })
+            return ('ticket', ticket),
+        next_uri = sanitize_url(next_uri, allowed_hosts, get_extra)
     return redirect(next_uri or 'home')
 
 def home(request):

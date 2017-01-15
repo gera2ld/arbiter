@@ -1,6 +1,8 @@
-import hashlib, pickle, time, random
+import hashlib, pickle, time, random, datetime
 from urllib import parse
-from django.core.cache import cache
+from functools import wraps
+import jwt
+from .models import *
 
 def create_unique_key(*k):
     h = hashlib.md5()
@@ -46,3 +48,60 @@ def sanitize_url(url, allowed_hosts, get_extra=None):
         qs.extend(get_extra())
         new_url_parts[4] = parse.urlencode(qs)
     return parse.urlunparse(new_url_parts)
+
+def require_auth(handle):
+    @wraps(handle)
+    def wrapped(self, *k, **kw):
+        if not self.current_user:
+            self.set_status(401)
+            self.write({
+                'error': 'Invalid token',
+            })
+            return
+        handle(self, *k, **kw)
+    return wrapped
+
+def cache_result(get_cache_key, timeout=30):
+    def wrapper(handle):
+        @wraps(handle)
+        def wrapped(*k, **kw):
+            cache_key = get_cache_key(*k, **kw)
+            result = cache.get(cache_key)
+            if result is None:
+                result = handle(*k, **kw)
+                if result is not None:
+                    cache.set(cache_key, result, timeout)
+            return result
+        return wrapped
+    return wrapper
+
+def create_token(payload, lifetime=datetime.timedelta(hours=24)):
+    payload['exp'] = datetime.datetime.utcnow() + lifetime
+    return jwt.encode(payload, settings.SECRET_KEY).decode()
+
+@cache_result(lambda uid: 'uid:%s' % uid)
+def load_user(uid):
+    return session.query(User).filter_by(id=uid).one_or_none()
+
+@cache_result(lambda token: 'token:%s' % token)
+def load_user_from_token(token):
+    try:
+        jwt_payload = jwt.decode(token, settings.SECRET_KEY)
+    except:
+        jwt_payload = None
+    uid = jwt_payload.get('uid') if jwt_payload else None
+    if uid:
+        return load_user(uid)
+
+def build_user(user, add_token=False):
+    extra = user.social_auth.first().extra_data
+    data = {
+        'uid': user.id,
+        'nickname': user.first_name,
+        'avatar': extra.get('avatar'),
+    }
+    if add_token:
+        data['token'] = create_token({
+            'uid': user.id,
+        })
+    return data

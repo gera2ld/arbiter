@@ -17,7 +17,7 @@ def create_ticket(data):
     return ticket
 
 def pop_ticket(ticket):
-    cache_key = 'ticket:' + ticket
+    cache_key = 'ticket:' + str(ticket)
     data = cache.get(cache_key)
     if data is not None:
         cache.delete(cache_key)

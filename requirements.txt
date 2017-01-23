@@ -1,3 +1,4 @@
 tornado
 social-auth-core
 social-auth-app-tornado
+beaker

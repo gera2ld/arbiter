@@ -1,12 +1,64 @@
+from urllib import parse
 from social_tornado.routes import SOCIAL_AUTH_ROUTES
 from social_tornado import handlers
 from tornado.web import url, RequestHandler
-from .utils import require_auth, pop_ticket, build_user, load_user_from_token, load_user
+from social_tornado.utils import psa
+from social_core.actions import do_complete
+from social_core.utils import setting_url, setting_name
+from .utils import require_auth, pop_ticket, build_user, \
+        load_user_from_token, load_user, create_ticket, sanitize_url
+
+class UserMixIn:
+    def get_current_user(self):
+        user_id = self.get_secure_cookie('user_id')
+        if user_id:
+            return load_user(int(user_id))
 
 class CompleteHandler(handlers.CompleteHandler):
+    @psa('complete')
     def _complete(self, backend):
-        print(self.request.arguments)
-        super()._complete(backend)
+        redirect_name = 'next'
+        redirect_value = self.backend.strategy.session_pop(redirect_name)
+        self.cookies.pop(redirect_name)
+        if redirect_value:
+            self.set_secure_cookie('next_uri', redirect_value)
+        do_complete(
+            self.backend,
+            login=lambda backend, user, social_user: self.login_user(user),
+            user=self.get_current_user()
+        )
+
+class LoggedInHandler(UserMixIn, RequestHandler):
+    def get(self):
+        if not self.current_user:
+            self.redirect('/')
+            return
+        next_uri = self.get_secure_cookie('next_uri')
+        if next_uri:
+            next_uri = next_uri.decode()
+        self.clear_cookie('next_uri')
+        if next_uri:
+            def get_extra():
+                ticket = create_ticket({
+                    'uid': self.current_user.id,
+                })
+                return ('ticket', ticket),
+            allowed_hosts = self.settings.get(setting_name('ALLOWED_HOSTS'))
+            next_uri = sanitize_url(next_uri, allowed_hosts, get_extra)
+        self.redirect(next_uri or '/')
+
+class HomeHandler(UserMixIn, RequestHandler):
+    def get(self):
+        next_uri = self.get_argument('next', default=None)
+        if next_uri:
+            if self.current_user:
+                self.backend.strategy.session_set('next_uri', next_uri)
+                self.redirect('/logged-in')
+                return
+            querystring = '?' + parse.urlencode([('next', next_uri)])
+        else:
+            querystring = ''
+        self.write('hello, world')
 
 class APIBaseHandler(RequestHandler):
     def get_current_user(self):
@@ -42,18 +94,14 @@ class TokenRenewalHandler(APIBaseHandler):
     def post(self):
         self.write(build_user(self.current_user, True))
 
-class MainHandler(RequestHandler):
-    def get(self):
-        print(self.current_user)
-        self.write('hello, world')
-
 routes = [
-    (r'/', MainHandler),
+    (r'/', HomeHandler),
+    (r'/logged-in', LoggedInHandler),
     (r'/api/user', UserHandler),
     (r'/api/token', TokenHandler),
     (r'/api/renewal', TokenRenewalHandler),
 ]
-routes.extend(SOCIAL_AUTH_ROUTES)
 routes.extend([
-    # url(r'/complete/(?P<backend>[^/]+)/', CompleteHandler, name='complete'),
+    url(r'/complete/(?P<backend>[^/]+)/', CompleteHandler, name='complete'),
 ])
+routes.extend(SOCIAL_AUTH_ROUTES)

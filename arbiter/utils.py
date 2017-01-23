@@ -3,6 +3,23 @@ from urllib import parse
 from functools import wraps
 import jwt
 from .models import *
+from .cache import cache
+
+ticket_cache = cache.get_cache('ticket', expire=30)
+
+def cache_result(cache):
+    def wrapper(handle):
+        @wraps(handle)
+        def wrapped(key):
+            try:
+                value = cache.get(key)
+            except KeyError:
+                value = handle(key)
+                if value:
+                    cache.put(key, value)
+            return value
+        return wrapped
+    return wrapper
 
 def create_unique_key(*k):
     h = hashlib.md5()
@@ -15,14 +32,17 @@ def create_unique_key(*k):
 
 def create_ticket(data):
     ticket = create_unique_key(data)
-    cache.set('ticket:' + ticket, data, 30)
+    ticket_cache.put(ticket, data)
     return ticket
 
 def pop_ticket(ticket):
-    cache_key = 'ticket:' + str(ticket)
-    data = cache.get(cache_key)
-    if data is not None:
-        cache.delete(cache_key)
+    ticket = str(ticket)
+    try:
+        data = ticket_cache.get(ticket)
+    except KeyError:
+        data = None
+    else:
+        ticket_cache.remove(ticket)
     return data
 
 def sanitize_url(url, allowed_hosts, get_extra=None):
@@ -61,29 +81,15 @@ def require_auth(handle):
         handle(self, *k, **kw)
     return wrapped
 
-def cache_result(get_cache_key, timeout=30):
-    def wrapper(handle):
-        @wraps(handle)
-        def wrapped(*k, **kw):
-            cache_key = get_cache_key(*k, **kw)
-            result = cache.get(cache_key)
-            if result is None:
-                result = handle(*k, **kw)
-                if result is not None:
-                    cache.set(cache_key, result, timeout)
-            return result
-        return wrapped
-    return wrapper
-
 def create_token(payload, lifetime=datetime.timedelta(hours=24)):
     payload['exp'] = datetime.datetime.utcnow() + lifetime
     return jwt.encode(payload, settings.SECRET_KEY).decode()
 
-@cache_result(lambda uid: 'uid:%s' % uid)
+@cache_result(cache.get_cache('user', expire=30))
 def load_user(uid):
     return session.query(User).filter_by(id=uid).one_or_none()
 
-@cache_result(lambda token: 'token:%s' % token)
+@cache_result(cache.get_cache('token', expire=30))
 def load_user_from_token(token):
     try:
         jwt_payload = jwt.decode(token, settings.SECRET_KEY)

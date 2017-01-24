@@ -1,6 +1,28 @@
-import hashlib, pickle, time, random
+import hashlib, pickle, time, random, datetime
 from urllib import parse
-from django.core.cache import cache
+from functools import wraps
+import jwt
+from sqlalchemy.orm import joinedload
+from social_tornado.models import TornadoStorage
+from .models import *
+from .cache import cache
+from .settings import SECRET_KEY
+
+ticket_cache = cache.get_cache('ticket', expire=30)
+
+def cache_result(cache):
+    def wrapper(handle):
+        @wraps(handle)
+        def wrapped(key):
+            try:
+                value = cache.get(key)
+            except KeyError:
+                value = handle(key)
+                if value:
+                    cache.put(key, value)
+            return value
+        return wrapped
+    return wrapper
 
 def create_unique_key(*k):
     h = hashlib.md5()
@@ -13,14 +35,17 @@ def create_unique_key(*k):
 
 def create_ticket(data):
     ticket = create_unique_key(data)
-    cache.set('ticket:' + ticket, data, 30)
+    ticket_cache.put(ticket, data)
     return ticket
 
 def pop_ticket(ticket):
-    cache_key = 'ticket:' + str(ticket)
-    data = cache.get(cache_key)
-    if data is not None:
-        cache.delete(cache_key)
+    ticket = str(ticket)
+    try:
+        data = ticket_cache.get(ticket)
+    except KeyError:
+        data = None
+    else:
+        ticket_cache.remove(ticket)
     return data
 
 def sanitize_url(url, allowed_hosts, get_extra=None):
@@ -46,3 +71,44 @@ def sanitize_url(url, allowed_hosts, get_extra=None):
         qs.extend(get_extra())
         new_url_parts[4] = parse.urlencode(qs)
     return parse.urlunparse(new_url_parts)
+
+def require_auth(handle):
+    @wraps(handle)
+    def wrapped(self, *k, **kw):
+        if not self.current_user:
+            self.set_status(401)
+            self.write({
+                'error': 'Invalid token',
+            })
+            return
+        handle(self, *k, **kw)
+    return wrapped
+
+def create_token(payload, lifetime=datetime.timedelta(hours=24)):
+    payload['exp'] = datetime.datetime.utcnow() + lifetime
+    return jwt.encode(payload, SECRET_KEY).decode()
+
+def load_user(uid):
+    return session.query(TornadoStorage.user).options(joinedload('user')).filter_by(user_id=uid).one_or_none()
+
+def load_user_from_token(token):
+    try:
+        jwt_payload = jwt.decode(token, SECRET_KEY)
+    except:
+        jwt_payload = None
+    uid = jwt_payload.get('uid') if jwt_payload else None
+    if uid:
+        return load_user(uid)
+
+def build_user(user, add_token=False):
+    extra = user.extra_data
+    data = {
+        'uid': user.id,
+        'nickname': extra.get('name'),
+        'avatar': extra.get('avatar'),
+    }
+    if add_token:
+        data['token'] = create_token({
+            'uid': user.id,
+        })
+    return data

@@ -1,3 +1,4 @@
-django
+tornado
 social-auth-core
-social-auth-app-django
+social-auth-app-tornado
+beaker

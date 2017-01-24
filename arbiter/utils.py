@@ -2,8 +2,11 @@ import hashlib, pickle, time, random, datetime
 from urllib import parse
 from functools import wraps
 import jwt
+from sqlalchemy.orm import joinedload
+from social_tornado.models import TornadoStorage
 from .models import *
 from .cache import cache
+from .settings import SECRET_KEY
 
 ticket_cache = cache.get_cache('ticket', expire=30)
 
@@ -83,16 +86,14 @@ def require_auth(handle):
 
 def create_token(payload, lifetime=datetime.timedelta(hours=24)):
     payload['exp'] = datetime.datetime.utcnow() + lifetime
-    return jwt.encode(payload, settings.SECRET_KEY).decode()
+    return jwt.encode(payload, SECRET_KEY).decode()
 
-@cache_result(cache.get_cache('user', expire=30))
 def load_user(uid):
-    return session.query(User).filter_by(id=uid).one_or_none()
+    return session.query(TornadoStorage.user).options(joinedload('user')).filter_by(user_id=uid).one_or_none()
 
-@cache_result(cache.get_cache('token', expire=30))
 def load_user_from_token(token):
     try:
-        jwt_payload = jwt.decode(token, settings.SECRET_KEY)
+        jwt_payload = jwt.decode(token, SECRET_KEY)
     except:
         jwt_payload = None
     uid = jwt_payload.get('uid') if jwt_payload else None
@@ -100,10 +101,10 @@ def load_user_from_token(token):
         return load_user(uid)
 
 def build_user(user, add_token=False):
-    extra = user.social_auth.first().extra_data
+    extra = user.extra_data
     data = {
         'uid': user.id,
-        'nickname': user.first_name,
+        'nickname': extra.get('name'),
         'avatar': extra.get('avatar'),
     }
     if add_token:
